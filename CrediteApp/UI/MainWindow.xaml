@@ -37,7 +37,7 @@
                 <RowDefinition/>
                 <RowDefinition/>
             </Grid.RowDefinitions>
-            <Label Name="loadingScreenStatusLabel"
+            <Label Name="loadingScreenTitleLabel"
                    Grid.Row="0"
                    Grid.Column="1"
                    VerticalAlignment="Bottom"
@@ -80,10 +80,10 @@
             </Grid.RowDefinitions>
             <GroupBox Grid.Row="0"
                       Header="Selecție credit">
-                <ComboBox Name="creditSelectionComboBox"
+                <ComboBox Name="loanSelectionComboBox"
                           SelectedIndex="0"
                           DisplayMemberPath="Name"
-                          SelectionChanged="CreditSelectionComboBox_SelectionChanged"
+                          SelectionChanged="LoanSelectionComboBox_SelectionChanged"
                           ItemsSource="{Binding}">
                 </ComboBox>
             </GroupBox>
@@ -114,7 +114,7 @@
                     <TextBox Grid.Row="0"
                              Grid.Column="1"
                              MaxLines="1"
-                             Name="creditNameTextBox"/>
+                             Name="loanNameTextBox"/>
                     <Label Grid.Row="0"
                            Grid.Column="2"
                            HorizontalAlignment="Right"
@@ -122,14 +122,14 @@
                     <TextBox Grid.Row="0"
                              Grid.Column="3"
                              MaxLines="1"
-                             Name="creditValueTextBox"/>
+                             Name="loanValueTextBox"/>
                     <Label Grid.Row="2"
                            Grid.Column="0"
                            HorizontalAlignment="Right"
                            Content="Dată început:"/>
                     <DatePicker Grid.Row="2"
                                 Grid.Column="1"
-                                Name="creditStartDateDatePicker"/>
+                                Name="loanStartDateDatePicker"/>
                     <Label Grid.Row="2"
                            Grid.Column="2"
                            HorizontalAlignment="Right"
@@ -137,7 +137,7 @@
                     <TextBox Grid.Row="2"
                              Grid.Column="3"
                              MaxLines="1"
-                             Name="creditDurationTextBox"/>
+                             Name="loanDurationTextBox"/>
                     <Label Grid.Row="4"
                            Grid.Column="0"
                            HorizontalAlignment="Right"
@@ -145,10 +145,10 @@
                     <StackPanel Grid.Row="4"
                                 Grid.Column="1">
                         <RadioButton GroupName="creditInterestTypeRadioGroup"
-                                     Name="creditFixedInterestTypeRadioButton"
+                                     Name="loanFixedInterestTypeRadioButton"
                                      Content="Fixă"/>
                         <RadioButton GroupName="creditInterestTypeRadioGroup"
-                                     Name="creditVariableInterestTypeRadioButton"
+                                     Name="loanVariableInterestTypeRadioButton"
                                      Content="Fixă + IRCC"/>
                     </StackPanel>
                     <Label Grid.Row="4"
@@ -158,7 +158,7 @@
                     <TextBox Grid.Row="4"
                              Grid.Column="3"
                              MaxLines="1"
-                             Name="creditFixedInterestRateTextBox"/>
+                             Name="loanFixedInterestRateTextBox"/>
                     <Label Grid.Row="6"
                            Grid.Column="0"
                            Content="Scadență lunară (ziua 1-28):"
@@ -166,7 +166,7 @@
                     <TextBox Grid.Row="6"
                              Grid.Column="1"
                              MaxLines="1"
-                             Name="creditMonthlyDueDateTextBox"/>
+                             Name="loanMonthlyDueDateTextBox"/>
                     <Label Grid.Row="6"
                            Grid.Column="2"
                            Content="Comision rambursare anticipată (%):"
@@ -174,19 +174,19 @@
                     <TextBox Grid.Row="6"
                              Grid.Column="3"
                              MaxLines="1"
-                             Name="creditAdditionalLoanRepaymentCommissionTextBox"/>
+                             Name="loanAdditionalLoanRepaymentCommissionTextBox"/>
                     <Button Grid.Row="8"
                             Grid.Column="3"
                             Grid.ColumnSpan="1"
-                            Name="saveCreditButton"
+                            Name="saveLoanButton"
                             Content="Salvează"
-                            Click="SaveCreditButton_Click"/>
+                            Click="SaveLoanButton_Click"/>
                 </Grid>
             </GroupBox>
             <GroupBox Grid.Row="2" 
                       Header="Grafic de rambursare"
                       Name="repaymentTableGroupBox">
-                <DataGrid Name="repaymentTableDataGrid"
+                <DataGrid Name="instalmentTableDataGrid"
                           AutoGenerateColumns="False"
                           CanUserReorderColumns="False"
                           CanUserSortColumns="False"
@@ -197,7 +197,7 @@
                           GridLinesVisibility="Horizontal"
                           ItemsSource="{Binding}"
                           SelectionMode="Single"
-                          SelectionChanged="ReimbursementTableDataGrid_SelectionChanged">
+                          SelectionChanged="InstalmentTableDataGrid_SelectionChanged">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Lună" 
                                             IsReadOnly="True" 
@@ -210,19 +210,23 @@
                         <DataGridTextColumn Header="Principal" 
                                             IsReadOnly="True" 
                                             Width="auto" 
-                                            Binding="{Binding Path=RepaidPrincipalSum, StringFormat={}{0:F2}}"/>
+                                            Binding="{Binding Path=PrincipalSum, StringFormat={}{0:F2}}"/>
                         <DataGridTextColumn Header="Dobândă" 
                                             IsReadOnly="True" 
                                             Width="auto" 
-                                            Binding="{Binding Path=RepaidInterestSum, StringFormat={}{0:F2}}"/>
+                                            Binding="{Binding Path=InterestSum, StringFormat={}{0:F2}}"/>
                         <DataGridTextColumn Header="Rată totală"
                                             IsReadOnly="True"
                                             Width="auto"
-                                            Binding="{Binding Path=RepaidTotalSum, StringFormat={}{0:F2}}"/>
+                                            Binding="{Binding Path=TotalSum, StringFormat={}{0:F2}}"/>
                         <DataGridTextColumn Header="Plată anticipată"
                                             IsReadOnly="True"
                                             Width="Auto"
-                                            Binding="{Binding Path=RepaidAdditionalSum, StringFormat={}{0:0.##;0; }}"/>
+                                            Binding="{Binding Path=AdditionalSum, StringFormat={}{0:0.##;0; }}"/>
+                        <DataGridTextColumn Header="Comision plată anticipată"
+                                            IsReadOnly="True"
+                                            Width="Auto"
+                                            Binding="{Binding Path=AdditionalComission, StringFormat={}{0:0.##;0; }}"/>
                     </DataGrid.Columns>
                     <DataGrid.CellStyle>
                         <Style TargetType="DataGridCell">
@@ -252,7 +256,7 @@
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition/>
-                        <RowDefinition Height="4"/>
+                        <RowDefinition Height="8"/>
                         <RowDefinition/>
                     </Grid.RowDefinitions>
                     <ComboBox Name="additionalLoanRepaymentSelectionComboBox"
@@ -287,6 +291,13 @@
                                      Content="Reducere ratei lunare"/>
                     </StackPanel>
                     <Button Grid.Row="2"
+                            Grid.Column="0"
+                            Grid.ColumnSpan="1"
+                            Name="deleteAdditionalLoanRepaymentButton"
+                            Content="Șterge"
+                            Visibility="Hidden"
+                            Click="DeleteAdditionalLoanRepaymentButton_Click"/>
+                    <Button Grid.Row="2"
                             Grid.Column="6"
                             Grid.ColumnSpan="1"
                             Name="saveAdditionalLoanRepaymentButton"
@@ -296,7 +307,7 @@
             </GroupBox>
             <GroupBox Grid.Row="4" 
                       Header="Cost credit"
-                      Name="creditCostGroupBox">
+                      Name="loanCostGroupBox">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition/>
@@ -307,7 +318,7 @@
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0"
                            Grid.Column="0"
-                           Name="totalCostLabel">
+                           Name="loanTotalCostLabel">
                     </Label>
                     <Label Grid.Row="0"
                            Grid.Column="1"
@@ -339,21 +350,21 @@
                         <RowDefinition Height="auto"/>
                         <RowDefinition Height="auto"/>
                     </Grid.RowDefinitions>
-                    <Label Name="euroDateLabel"
+                    <Label Name="euroExchangeRateDateLabel"
                            Content="XX.XX.XXXX"
                            Grid.Row="0"
                            Grid.Column="0"
                            Grid.ColumnSpan="3"
                            HorizontalAlignment="Center">
                     </Label>
-                    <Label Name="euroExchangeRateLabel"
+                    <Label Name="euroExchangeRateValueLabel"
                            Content="X.XXXX"
                            FontWeight="Bold"
                            Grid.Row="1"
                            Grid.Column="0"
                            HorizontalAlignment="Center">
                     </Label>
-                    <Label Name="euroPreviousDateChangeLabel"
+                    <Label Name="euroExchangeRateDifferenceLabel"
                            Content="±X.XXXX"
                            FontWeight="DemiBold"
                            Grid.Row="1"
@@ -361,7 +372,7 @@
                            Grid.ColumnSpan="1"
                            HorizontalAlignment="Center">
                     </Label>
-                    <Label Name="euroExchangeRateNotUpToDateWarningLabel"
+                    <Label Name="euroExchangeRateOutdatedWarningLabel"
                            Content="⚠"
                            FontWeight="Bold"
                            Foreground="Crimson"

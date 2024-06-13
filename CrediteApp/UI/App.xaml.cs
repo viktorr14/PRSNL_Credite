@@ -1,4 +1,4 @@
-﻿using Credit;
+﻿using LoanSubsystem;
 using Microsoft.Extensions.DependencyInjection;
 using System.Globalization;
 using System.Threading;
@@ -15,8 +15,8 @@ namespace UI
         {
             ServiceCollection services = new ServiceCollection();
 
-            services.AddScoped<CreditResource>();
-            services.AddScoped<CreditManager>();
+            services.AddScoped<LoanResource>();
+            services.AddScoped<LoanManager>();
             services.AddSingleton<MainWindow>();
 
             serviceProvider = services.BuildServiceProvider();

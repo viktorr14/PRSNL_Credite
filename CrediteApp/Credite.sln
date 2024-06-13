@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.29411.108
+# Visual Studio Version 17
+VisualStudioVersion = 17.7.34202.233
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BNR", "BNR\BNR.csproj", "{DDB2100B-C774-47EE-8C7E-3325C44FC456}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WebCrawlSubsystem", "WebCrawlSubsystem\WebCrawlSubsystem.csproj", "{DDB2100B-C774-47EE-8C7E-3325C44FC456}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Credit", "BCR\Credit.csproj", "{D503E5A5-3A73-4084-894C-A1F61D7A8928}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LoanSubsystem", "LoanSubsystem\LoanSubsystem.csproj", "{D503E5A5-3A73-4084-894C-A1F61D7A8928}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UI", "UI\UI.csproj", "{28468565-62AF-4AA0-9051-F6AFA077271C}"
 EndProject

@@ -18,8 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BCR\Credit.csproj" />
-    <ProjectReference Include="..\BNR\BNR.csproj" />
+    <ProjectReference Include="..\LoanSubsystem\LoanSubsystem.csproj" />
+    <ProjectReference Include="..\WebCrawlSubsystem\WebCrawlSubsystem.csproj" />
   </ItemGroup>
 
   <ItemGroup>

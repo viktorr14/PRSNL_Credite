@@ -1,8 +1,7 @@
-﻿using Credit;
-using Credit.Models;
-using BNR;
-using BNR.Models;
-using UI.Misc;
+﻿using LoanSubsystem;
+using LoanSubsystem.Models;
+using WebCrawlSubsystem;
+using WebCrawlSubsystem.Models;
 using System;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -17,19 +16,19 @@ using System.Threading.Tasks;
 
 namespace UI
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, IWebCrawlStatusObserver
     {
-        private CreditManager creditManager;
+        private readonly LoanManager loanManager;
 
-        private BNRResult bnrResult;
+        private WebCrawlResult webCrawlResult;
 
-        private ObservableCollection<CreditDetails> creditsDetails = new ObservableCollection<CreditDetails>();
-        private ObservableCollection<RepaymentEntry> repaymentEntries = new ObservableCollection<RepaymentEntry>();
-        private ObservableCollection<AdditionalLoanRepayment> additionalLoanRepayments = new ObservableCollection<AdditionalLoanRepayment>();
+        private ObservableCollection<Loan> loanCollection = new ObservableCollection<Loan>();
+        private ObservableCollection<Instalment> instalmentCollection = new ObservableCollection<Instalment>();
+        private ObservableCollection<AdditionalRepayment> additionalRepaymentCollection = new ObservableCollection<AdditionalRepayment>();
 
-        public MainWindow(CreditManager creditManager)
+        public MainWindow(LoanManager loanManager)
         {
-            this.creditManager = creditManager;
+            this.loanManager = loanManager;
 
             DateTime nextTick = DateTime.Now;
             if (nextTick.Hour >= 14)
@@ -42,90 +41,74 @@ namespace UI
             InitializeComponent();
         }
 
-        private void Window_Loaded(object sender, RoutedEventArgs e)
+        private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            Task<BNRResult> task = Task.Run(() => BNRManager.DetailBNRResult());
-
             loadingScreenGrid.Visibility = Visibility.Visible;
 
-            Task.WaitAll(task);
+            webCrawlResult = await Task.Run(() => WebCrawlManager.DetailWebCrawlResult());
 
-            bnrResult = task.Result;
-
-            PopulateCreditCollection(creditManager.ListCredits);
-
+            PopulateLoanCollection(loanManager.ListCredits);
+            DisplayWebCrawlResult();
             infoLabel.Content = $"Informații (Azi, {FormatDate(DateTime.Now)})";
-
-            DisplayBNRInformation();
 
             loadingScreenGrid.Visibility = Visibility.Hidden;
         }
 
-        private void OnDayChange(object state)
+        private async void OnDayChange(object state)
         {
-            Task<BNRResult> task = Task.Run(() => BNRManager.DetailBNRResult());
-
             loadingScreenGrid.Visibility = Visibility.Visible;
 
-            Task.WaitAll(task);
+            webCrawlResult = await Task.Run(() => WebCrawlManager.DetailWebCrawlResult());
 
-            bnrResult = task.Result;
-
-            PopulateCreditCollection(creditManager.ListCredits);
-
+            PopulateLoanCollection(loanManager.ListCredits);
+            DisplayWebCrawlResult();
             infoLabel.Content = $"Informații (Azi, {FormatDate(DateTime.Now)})";
-
-            DisplayBNRInformation();
 
             loadingScreenGrid.Visibility = Visibility.Hidden;
         }
 
-        private void DisplayBNRInformation()
+        private void DisplayWebCrawlResult()
         {
-            euroDateLabel.Content = FormatDate(bnrResult.EuroExchangeRate.Date);
-            euroExchangeRateLabel.Content = FormatExchangeRate(bnrResult.EuroExchangeRate.Value);
-            euroPreviousDateChangeLabel.Content = FormatExchangeRateChange(bnrResult.EuroExchangeRate.PreviousDateChange);
+            euroExchangeRateDateLabel.Content = FormatDate(webCrawlResult.EuroExchangeRate.Date);
+            euroExchangeRateValueLabel.Content = FormatExchangeRate(webCrawlResult.EuroExchangeRate.Value);
+            euroExchangeRateDifferenceLabel.Content = FormatExchangeRateChange(webCrawlResult.EuroExchangeRate.PreviousDateChange);
 
-            if (bnrResult.EuroExchangeRate.PreviousDateChange > 0)
+            if (webCrawlResult.EuroExchangeRate.PreviousDateChange > 0)
             {
-                euroPreviousDateChangeLabel.Foreground = Brushes.Crimson;
-                euroExchangeRateLabel.Background = Brushes.Salmon;
+                euroExchangeRateDifferenceLabel.Foreground = Brushes.Crimson;
+                euroExchangeRateValueLabel.Background = Brushes.Salmon;
             }
             else
             {
-                euroPreviousDateChangeLabel.Foreground = Brushes.LimeGreen;
+                euroExchangeRateDifferenceLabel.Foreground = Brushes.LimeGreen;
             }
 
-            if (bnrResult.EuroExchangeRate.Date != DateTime.Now.Date)
+            if (webCrawlResult.EuroExchangeRate.Date != DateTime.Now.Date)
             {
-                euroExchangeRateNotUpToDateWarningLabel.Visibility = Visibility.Visible;
+                euroExchangeRateOutdatedWarningLabel.Visibility = Visibility.Visible;
             }
 
-            irccTableListView.ItemsSource = bnrResult.QuarterlyIndices;
+            irccTableListView.ItemsSource = webCrawlResult.QuarterlyIndices;
         }
 
-        private void PopulateCreditCollection(CreditDetails[] creditsDetails, int selectIndex = 0)
+        private void PopulateLoanCollection(Loan[] loans, int selectIndex = 0)
         {
-            CreditDetails[] credits = creditsDetails.Prepend(new CreditDetails { Id = -1, Name = "Credit nou..." }).ToArray();
+            Loan[] loansList = loans.Prepend(new Loan { Id = -1, Name = "Credit nou..." }).ToArray();
 
-            this.creditsDetails = new ObservableCollection<CreditDetails>(credits);
-            creditSelectionComboBox.DataContext = this.creditsDetails;
-            creditSelectionComboBox.SelectedIndex = selectIndex > credits.Length - 1 ? credits.Length - 1 : selectIndex;
+            loanCollection = new ObservableCollection<Loan>(loans);
+            loanSelectionComboBox.DataContext = loanCollection;
+            loanSelectionComboBox.SelectedIndex = selectIndex > loansList.Length - 1 ? loansList.Length - 1 : selectIndex;
         }
 
-        private void PopulateReimbursementCollection(RepaymentEntry[] repaymentEntries)
+        private void PopulateInstalmentCollection(Instalment[] instalmentEntries)
         {
-            this.repaymentEntries = new ObservableCollection<RepaymentEntry>(repaymentEntries);
-            repaymentTableDataGrid.DataContext = this.repaymentEntries;
+            instalmentCollection = new ObservableCollection<Instalment>(instalmentEntries);
+            instalmentTableDataGrid.DataContext = instalmentCollection;
 
-            int currentDateItemIndex = repaymentEntries.Select((entry, index) => (entry.Date, index)).First(tuple => tuple.Date.Year == DateTime.Now.Year && tuple.Date.Month == DateTime.Now.Month).index;
+            int currentDateItemIndex = instalmentEntries.Select((entry, index) => (entry.Date, index)).FirstOrDefault(tuple => tuple.Date.AddMonths(-1) < DateTime.Today && DateTime.Today <= tuple.Date).index;
 
-            ScrollViewer scrollViewer = GetScrollViewer(repaymentTableDataGrid) as ScrollViewer;
-            scrollViewer.ScrollToTop();
-            for (int scroll = 0; scroll < currentDateItemIndex; scroll++)
-            {
-                scrollViewer.LineDown();
-            }
+            ScrollViewer scrollViewer = GetScrollViewer(instalmentTableDataGrid) as ScrollViewer;
+            scrollViewer.ScrollToVerticalOffset(currentDateItemIndex);
         }
 
         private static DependencyObject GetScrollViewer(DependencyObject dependencyObject)
@@ -150,62 +133,62 @@ namespace UI
             return null;
         }
 
-        private void CreditSelectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void LoanSelectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (!(creditSelectionComboBox.SelectedItem is CreditDetails selectedCredit))
+            if (!(loanSelectionComboBox.SelectedItem is Loan selectedLoan))
             {
                 return;
             }
 
-            ToggleCreditReimbursementDetailsVisibility(selectedCredit.Id > 0);
+            ToggleCreditReimbursementDetailsVisibility(selectedLoan.Id > 0);
             SetAdditionalLoanRepaymentControlsEnabled(false);
-            DisplayCreditDetails(selectedCredit);
+            DisplayCreditDetails(selectedLoan);
 
-            if (selectedCredit.Id > 0)
+            if (selectedLoan.Id > 0)
             {
-                RepaymentDetails repaymentDetails = CreditManager.GetRepaymentDetails(selectedCredit, bnrResult.QuarterlyIndices);
+                RepaymentDetails repaymentDetails = LoanManager.GetRepaymentDetails(selectedLoan, webCrawlResult.QuarterlyIndices);
 
-                PopulateReimbursementCollection(repaymentDetails.RepaymentEntries);
+                PopulateInstalmentCollection(repaymentDetails.Instalments);
 
-                totalCostLabel.Content = $"Cost total credit: {string.Format(repaymentDetails.TotalCost.ToString("F2"))}";
+                loanTotalCostLabel.Content = $"Cost total credit: {string.Format(repaymentDetails.TotalCost.ToString("F2"))}";
                 savingsLabel.Content = $"Economii din plățile anticipate: {string.Format(repaymentDetails.AdditonalRepaymentsSavings.ToString("F2"))}";
             }
         }
 
         private void ToggleCreditReimbursementDetailsVisibility(bool visible)
         {
-            repaymentTableGroupBox.Visibility = creditCostGroupBox.Visibility = additionalLoanRepaymentGroupBox.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
+            repaymentTableGroupBox.Visibility = loanCostGroupBox.Visibility = additionalLoanRepaymentGroupBox.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
         }
 
-        private void DisplayCreditDetails(CreditDetails creditDetails)
+        private void DisplayCreditDetails(Loan creditDetails)
         {
-            creditNameTextBox.Text = creditDetails.Name;
-            creditValueTextBox.Text = creditDetails.Sum != 0 ? creditDetails.Sum.ToString() : string.Empty;
-            creditStartDateDatePicker.SelectedDate = creditDetails.StartDate != DateTime.MinValue ? (DateTime?)creditDetails.StartDate : null;
-            creditDurationTextBox.Text = creditDetails.Duration != 0 ? creditDetails.Duration.ToString() : string.Empty;
-            creditFixedInterestRateTextBox.Text = creditDetails.InterestRate != 0 ? creditDetails.InterestRate.ToString() : string.Empty;
-            creditFixedInterestTypeRadioButton.IsChecked = creditDetails.Id > 0 && creditDetails.InterestType == InterestType.Fixed;
-            creditVariableInterestTypeRadioButton.IsChecked = creditDetails.Id > 0 && creditDetails.InterestType == InterestType.Variable;
-            creditMonthlyDueDateTextBox.Text = creditDetails.MonthlyDueDay != 0 ? creditDetails.MonthlyDueDay.ToString() : string.Empty;
-            creditAdditionalLoanRepaymentCommissionTextBox.Text = creditDetails.AdditionalLoanRepaymentCommission != 0 ? creditDetails.AdditionalLoanRepaymentCommission.ToString() : string.Empty;
+            loanNameTextBox.Text = creditDetails.Name;
+            loanValueTextBox.Text = creditDetails.Sum != 0 ? creditDetails.Sum.ToString() : string.Empty;
+            loanStartDateDatePicker.SelectedDate = creditDetails.StartDate != DateTime.MinValue ? creditDetails.StartDate : null;
+            loanDurationTextBox.Text = creditDetails.Duration != 0 ? creditDetails.Duration.ToString() : string.Empty;
+            loanFixedInterestRateTextBox.Text = creditDetails.InterestRate != 0 ? creditDetails.InterestRate.ToString() : string.Empty;
+            loanFixedInterestTypeRadioButton.IsChecked = creditDetails.Id > 0 && creditDetails.InterestType == InterestType.Fixed;
+            loanVariableInterestTypeRadioButton.IsChecked = creditDetails.Id > 0 && creditDetails.InterestType == InterestType.Variable;
+            loanMonthlyDueDateTextBox.Text = creditDetails.MonthlyDueDay != 0 ? creditDetails.MonthlyDueDay.ToString() : string.Empty;
+            loanAdditionalLoanRepaymentCommissionTextBox.Text = creditDetails.AdditionalRepaymentCommission.ToString();
         }
 
-        private void SaveCreditButton_Click(object sender, RoutedEventArgs e)
+        private void SaveLoanButton_Click(object sender, RoutedEventArgs e)
         {
             List<string> errors = new List<string>();
 
-            CreditDetails creditDetails = new CreditDetails
+            Loan creditDetails = new Loan
             {
-                Id = GetCreditId(),
-                Name = ValidateCreditName(creditNameTextBox.Text, errors),
-                Sum = ValidateDecimalValueInput("Valoarea creditului", creditValueTextBox.Text, errors),
-                StartDate = ValidateDateIsSelected(creditStartDateDatePicker.SelectedDate, "de inceput", errors).ToDateOnly(),
-                Duration = ValidateIntegerValueInput("Perioada", creditDurationTextBox.Text, new Tuple<int, int>(1, 360), errors),
+                Id = GetLoanId(),
+                Name = ValidateLoanName(loanNameTextBox.Text, errors),
+                Sum = ValidateDecimalValueInput("Valoarea creditului", loanValueTextBox.Text, errors),
+                StartDate = ValidateDateIsSelected(loanStartDateDatePicker.SelectedDate, "de inceput", errors).Date,
+                Duration = ValidateIntegerValueInput("Perioada", loanDurationTextBox.Text, new Tuple<int, int>(1, 360), errors),
                 InterestType = ValidateInterestTypeIsSelected(errors),
-                InterestRate = ValidateDecimalValueInput("Rata dobanzii fixe", creditFixedInterestRateTextBox.Text, errors),
-                MonthlyDueDay = ValidateIntegerValueInput("Scadența lunară", creditMonthlyDueDateTextBox.Text, new Tuple<int, int>(1, 28), errors),
-                AdditionalLoanRepaymentCommission = ValidateDecimalValueInput("Comisionul de rambursare anticipată", creditAdditionalLoanRepaymentCommissionTextBox.Text, errors),
-                AdditionalLoanRepayments = new List<AdditionalLoanRepayment>()
+                InterestRate = ValidateDecimalValueInput("Rata dobanzii fixe", loanFixedInterestRateTextBox.Text, errors),
+                MonthlyDueDay = ValidateIntegerValueInput("Scadența lunară", loanMonthlyDueDateTextBox.Text, new Tuple<int, int>(1, 28), errors),
+                AdditionalRepaymentCommission = ValidateDecimalValueInput("Comisionul de rambursare anticipată", loanAdditionalLoanRepaymentCommissionTextBox.Text, errors),
+                AdditionalRepayments = new List<AdditionalRepayment>()
             };
 
             if (errors.Any())
@@ -214,26 +197,26 @@ namespace UI
                 return;
             }
 
-            creditManager.SaveCredit(creditDetails);
+            loanManager.SaveLoan(creditDetails);
 
-            PopulateCreditCollection(creditManager.ListCredits, creditsDetails.Count - 1);
+            PopulateLoanCollection(loanManager.ListCredits, loanCollection.Count - 1);
         }
 
-        private int GetCreditId()
+        private int GetLoanId()
         {
-            if ((creditSelectionComboBox.SelectedItem as CreditDetails).Id > 0)
+            if ((loanSelectionComboBox.SelectedItem as Loan).Id > 0)
             {
-                return (creditSelectionComboBox.SelectedItem as CreditDetails).Id;
+                return (loanSelectionComboBox.SelectedItem as Loan).Id;
             }
 
-            int lastID = creditsDetails.OrderBy(cd => cd.Id).Last().Id;
+            int lastID = loanCollection.OrderBy(cd => cd.Id).Last().Id;
 
             return lastID < 0 ? 1 : lastID + 1;
         }
 
-        private void ReimbursementTableDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void InstalmentTableDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (repaymentTableDataGrid.SelectedIndex == -1)
+            if (instalmentTableDataGrid.SelectedIndex == -1)
             {
                 SetAdditionalLoanRepaymentControlsEnabled(false);
                 return;
@@ -241,14 +224,14 @@ namespace UI
 
             SetAdditionalLoanRepaymentControlsEnabled(true);
 
-            RepaymentEntry selectedReimbursementEntry = repaymentTableDataGrid.SelectedItem as RepaymentEntry;
-            AdditionalLoanRepayment[] selectedReimbursementEntryAdditionalLoanRepayments = selectedReimbursementEntry.AdditionalLoanRepayments;
+            Instalment selectedInstalment = instalmentTableDataGrid.SelectedItem as Instalment;
+            AdditionalRepayment[] selectedInstalmentAdditionalRepayments = selectedInstalment.AdditionalLoanRepayments;
 
-            additionalLoanRepaymentDateDatePicker.DisplayDateStart = selectedReimbursementEntry.Date.AddMonths(-1).AddDays(1);
-            additionalLoanRepaymentDateDatePicker.DisplayDateEnd = selectedReimbursementEntry.Date;
-            additionalLoanRepaymentDateDatePicker.DisplayDate = selectedReimbursementEntry.Date;
+            additionalLoanRepaymentDateDatePicker.DisplayDateStart = selectedInstalment.Date.AddMonths(-1).AddDays(1);
+            additionalLoanRepaymentDateDatePicker.DisplayDateEnd = selectedInstalment.Date;
+            additionalLoanRepaymentDateDatePicker.DisplayDate = selectedInstalment.Date;
 
-            PopulateAdditionalLoanRepaymentsCollection(selectedReimbursementEntryAdditionalLoanRepayments);
+            PopulateAdditionalLoanRepaymentsCollection(selectedInstalmentAdditionalRepayments);
         }
 
         private void SetAdditionalLoanRepaymentControlsEnabled(bool enabled)
@@ -261,30 +244,31 @@ namespace UI
             additionalLoanRepaymentPaymentReductionTypeRadioButton.IsEnabled = enabled;
         }
 
-        private void PopulateAdditionalLoanRepaymentsCollection(AdditionalLoanRepayment[] additionalLoanRepayments, int selectIndex = 0)
+        private void PopulateAdditionalLoanRepaymentsCollection(AdditionalRepayment[] additionalRepayments, int selectIndex = 0)
         {
-            AdditionalLoanRepayment[] repayments = additionalLoanRepayments.Select(repayment => new AdditionalLoanRepayment
+            AdditionalRepayment[] repayments = additionalRepayments.Select(repayment => new AdditionalRepayment
             {
                 Name = FormatDate(repayment.Date),
                 Date = repayment.Date,
                 Sum = repayment.Sum,
                 Type = repayment.Type
-            }).Prepend(new AdditionalLoanRepayment { Name = "Plată nouă..." }).ToArray();
+            }).Prepend(new AdditionalRepayment { Name = "Plată nouă..." }).ToArray();
 
-            this.additionalLoanRepayments = new ObservableCollection<AdditionalLoanRepayment>(repayments);
-            additionalLoanRepaymentSelectionComboBox.DataContext = this.additionalLoanRepayments;
+            this.additionalRepaymentCollection = new ObservableCollection<AdditionalRepayment>(repayments);
+            additionalLoanRepaymentSelectionComboBox.DataContext = this.additionalRepaymentCollection;
             additionalLoanRepaymentSelectionComboBox.SelectedIndex = selectIndex > repayments.Length - 1 ? repayments.Length - 1 : selectIndex;
         }
 
         private void AdditionalLoanRepaymentSelectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (!(additionalLoanRepaymentSelectionComboBox.SelectedItem is AdditionalLoanRepayment selectedAdditionalLoanRepayment))
+            if (!(additionalLoanRepaymentSelectionComboBox.SelectedItem is AdditionalRepayment selectedAdditionalRepayment))
             {
                 return;
             }
 
             if (additionalLoanRepaymentSelectionComboBox.SelectedIndex == 0)
             {
+                deleteAdditionalLoanRepaymentButton.Visibility = Visibility.Hidden;
                 saveAdditionalLoanRepaymentButton.Content = "Adaugă";
 
                 additionalLoanRepaymentSumTextBox.Clear();
@@ -296,13 +280,30 @@ namespace UI
                 return;
             }
 
+            deleteAdditionalLoanRepaymentButton.Visibility = Visibility.Visible;
             saveAdditionalLoanRepaymentButton.Content = "Salvează";
 
             additionalLoanRepaymentDateDatePicker.IsEnabled = false;
-            additionalLoanRepaymentDateDatePicker.SelectedDate = selectedAdditionalLoanRepayment.Date;
-            additionalLoanRepaymentSumTextBox.Text = selectedAdditionalLoanRepayment.Sum.ToString();
-            additionalLoanRepaymentPeriodReductionTypeRadioButton.IsChecked = selectedAdditionalLoanRepayment.Type == AdditionalLoanRepaymentType.PeriodReduction;
-            additionalLoanRepaymentPaymentReductionTypeRadioButton.IsChecked = selectedAdditionalLoanRepayment.Type == AdditionalLoanRepaymentType.PaymentReduction;
+            additionalLoanRepaymentDateDatePicker.SelectedDate = selectedAdditionalRepayment.Date;
+            additionalLoanRepaymentSumTextBox.Text = selectedAdditionalRepayment.Sum.ToString();
+            additionalLoanRepaymentPeriodReductionTypeRadioButton.IsChecked = selectedAdditionalRepayment.Type == AdditionalRepaymentType.PeriodReduction;
+            additionalLoanRepaymentPaymentReductionTypeRadioButton.IsChecked = selectedAdditionalRepayment.Type == AdditionalRepaymentType.PaymentReduction;
+        }
+
+        private void DeleteAdditionalLoanRepaymentButton_Click(object sender, RoutedEventArgs e)
+        {
+            deleteAdditionalLoanRepaymentButton.Visibility = Visibility.Hidden;
+
+            DateTime additionalRepaymentDate = (additionalLoanRepaymentSelectionComboBox.SelectedItem as AdditionalRepayment).Date.Date;
+
+            loanManager.DeleteAdditionalRepayment(loanSelectionComboBox.SelectedItem as Loan, additionalRepaymentDate);
+
+            additionalLoanRepaymentDateDatePicker.SelectedDate = null;
+            additionalLoanRepaymentPaymentReductionTypeRadioButton.IsChecked = false;
+            additionalLoanRepaymentPeriodReductionTypeRadioButton.IsChecked = false;
+            additionalLoanRepaymentSumTextBox.Clear();
+
+            PopulateLoanCollection(loanManager.ListCredits, loanSelectionComboBox.SelectedIndex);
         }
 
         private void SaveAdditionalLoanRepaymentButton_Click(object sender, RoutedEventArgs e)
@@ -311,10 +312,10 @@ namespace UI
 
             SetAdditionalLoanRepaymentControlsEnabled(false);
 
-            AdditionalLoanRepayment additionalLoanRepayment = new AdditionalLoanRepayment
+            AdditionalRepayment additionalRepayment = new AdditionalRepayment
             {
                 Name = FormatDate(ValidateDateIsSelected(additionalLoanRepaymentDateDatePicker.SelectedDate, "plății anticipate", errors)),
-                Date = ValidateDateIsSelected(additionalLoanRepaymentDateDatePicker.SelectedDate, "plății anticipate", errors).ToDateOnly(),
+                Date = ValidateDateIsSelected(additionalLoanRepaymentDateDatePicker.SelectedDate, "plății anticipate", errors).Date,
                 Sum = ValidateDecimalValueInput("Suma", additionalLoanRepaymentSumTextBox.Text, errors),
                 Type = ValidateAdditionalLoanRepaymentTypeIsSelected(errors),
             };
@@ -327,18 +328,20 @@ namespace UI
             }
             else
             {
-                creditManager.SaveAdditionalLoanRepayment(creditSelectionComboBox.SelectedItem as CreditDetails, additionalLoanRepayment);
+                loanManager.SaveAdditionalRepayment(loanSelectionComboBox.SelectedItem as Loan, additionalRepayment);
 
                 additionalLoanRepaymentDateDatePicker.SelectedDate = null;
+                additionalLoanRepaymentPaymentReductionTypeRadioButton.IsChecked = false;
+                additionalLoanRepaymentPeriodReductionTypeRadioButton.IsChecked = false;
                 additionalLoanRepaymentSumTextBox.Clear();
 
-                PopulateCreditCollection(creditManager.ListCredits, creditSelectionComboBox.SelectedIndex);
+                PopulateLoanCollection(loanManager.ListCredits, loanSelectionComboBox.SelectedIndex);
             }
         }
 
         #region Input Validation
 
-        private string ValidateCreditName(string creditName, List<string> errors)
+        private static string ValidateLoanName(string creditName, List<string> errors)
         {
             if (creditName.Contains("credit nou", StringComparison.OrdinalIgnoreCase))
             {
@@ -349,7 +352,7 @@ namespace UI
             return creditName;
         }
 
-        private decimal ValidateDecimalValueInput(string inputName, string inputValue, List<string> errors)
+        private static decimal ValidateDecimalValueInput(string inputName, string inputValue, List<string> errors)
         {
             if (decimal.TryParse(inputValue, out decimal parsedValue))
                 return parsedValue;
@@ -358,7 +361,7 @@ namespace UI
             return 0M;
         }
 
-        private int ValidateIntegerValueInput(string inputName, string inputValue, Tuple<int, int> limitInterval, List<string> errors)
+        private static int ValidateIntegerValueInput(string inputName, string inputValue, Tuple<int, int> limitInterval, List<string> errors)
         {
             if (int.TryParse(inputValue, out int parsedValue))
             {
@@ -374,7 +377,7 @@ namespace UI
             return 0;
         }
 
-        private DateTime ValidateDateIsSelected(DateTime? selectedDate, string dateName, List<string> errors)
+        private static DateTime ValidateDateIsSelected(DateTime? selectedDate, string dateName, List<string> errors)
         {
             if (selectedDate.HasValue)
             {
@@ -387,12 +390,12 @@ namespace UI
 
         private InterestType ValidateInterestTypeIsSelected(List<string> errors)
         {
-            if (creditFixedInterestTypeRadioButton.IsChecked.HasValue && creditFixedInterestTypeRadioButton.IsChecked.Value)
+            if (loanFixedInterestTypeRadioButton.IsChecked.HasValue && loanFixedInterestTypeRadioButton.IsChecked.Value)
             {
                 return InterestType.Fixed;
             }
 
-            if (creditVariableInterestTypeRadioButton.IsChecked.HasValue && creditVariableInterestTypeRadioButton.IsChecked.Value)
+            if (loanVariableInterestTypeRadioButton.IsChecked.HasValue && loanVariableInterestTypeRadioButton.IsChecked.Value)
             {
                 return InterestType.Variable;
             }
@@ -401,16 +404,16 @@ namespace UI
             return default;
         }
 
-        private AdditionalLoanRepaymentType ValidateAdditionalLoanRepaymentTypeIsSelected(List<string> errors)
+        private AdditionalRepaymentType ValidateAdditionalLoanRepaymentTypeIsSelected(List<string> errors)
         {
             if (additionalLoanRepaymentPeriodReductionTypeRadioButton.IsChecked.HasValue && additionalLoanRepaymentPeriodReductionTypeRadioButton.IsChecked.Value)
             {
-                return AdditionalLoanRepaymentType.PeriodReduction;
+                return AdditionalRepaymentType.PeriodReduction;
             }
 
             if (additionalLoanRepaymentPaymentReductionTypeRadioButton.IsChecked.HasValue && additionalLoanRepaymentPaymentReductionTypeRadioButton.IsChecked.Value)
             {
-                return AdditionalLoanRepaymentType.PaymentReduction;
+                return AdditionalRepaymentType.PaymentReduction;
             }
 
             errors.Add("Nu ai selectat opțiunea plății anticipate.");
@@ -432,17 +435,17 @@ namespace UI
 
         #region Formatting
 
-        private string FormatDate(DateTime date)
+        private static string FormatDate(DateTime date)
         {
             return date.ToString("dd.MM.yyyy");
         }
 
-        private string FormatExchangeRate(decimal value)
+        private static string FormatExchangeRate(decimal value)
         {
             return value.ToString("0.#### Lei");
         }
 
-        private string FormatExchangeRateChange(decimal value)
+        private static string FormatExchangeRateChange(decimal value)
         {
             return value.ToString("+0.####;-0.####;0");
         }
@@ -462,9 +465,7 @@ namespace UI
                 return Brushes.Transparent;
             }
 
-            DateTime dateNow = DateTime.Now;
-
-            return date.Value.Year == dateNow.Year && date.Value.Month == dateNow.Month ? Brushes.YellowGreen : Brushes.Transparent;
+            return date.Value.AddMonths(-1) < DateTime.Today && DateTime.Today <= date.Value ? Brushes.YellowGreen : Brushes.Transparent;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
