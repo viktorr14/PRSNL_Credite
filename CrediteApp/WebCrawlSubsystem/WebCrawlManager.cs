@@ -1,5 +1,4 @@
-﻿using LoanSubsystem.Models;
-using WebCrawlSubsystem.Models;
+﻿using WebCrawlSubsystem.Models;
 
 namespace WebCrawlSubsystem
 {

@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 
 namespace UI
 {
-    public partial class MainWindow : Window, IWebCrawlStatusObserver
+    public partial class MainWindow : Window
     {
         private readonly LoanManager loanManager;
 

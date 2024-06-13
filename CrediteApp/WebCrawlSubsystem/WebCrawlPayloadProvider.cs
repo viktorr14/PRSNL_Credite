@@ -5,7 +5,6 @@ using Microsoft.Edge.SeleniumTools;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using LoanSubsystem.Models;
 
 namespace WebCrawlSubsystem
 {
