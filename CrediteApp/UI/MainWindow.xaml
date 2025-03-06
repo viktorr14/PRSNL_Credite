@@ -261,7 +261,7 @@
                     </Grid.RowDefinitions>
                     <ComboBox Name="additionalLoanRepaymentSelectionComboBox"
                           SelectedIndex="0"
-                          DisplayMemberPath="Name"
+                          DisplayMemberPath="DisplayName"
                           SelectionChanged="AdditionalLoanRepaymentSelectionComboBox_SelectionChanged"
                           ItemsSource="{Binding}">
                     </ComboBox>

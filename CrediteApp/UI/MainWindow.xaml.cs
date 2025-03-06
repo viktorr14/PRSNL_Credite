@@ -45,7 +45,7 @@ namespace UI
         {
             loadingScreenGrid.Visibility = Visibility.Visible;
 
-            webCrawlResult = await Task.Run(() => WebCrawlManager.DetailWebCrawlResult());
+            webCrawlResult = await Task.Run(() => WebCrawlManager.GetWebCrawlPayLoad());
 
             PopulateLoanCollection(loanManager.ListCredits);
             DisplayWebCrawlResult();
@@ -58,7 +58,7 @@ namespace UI
         {
             loadingScreenGrid.Visibility = Visibility.Visible;
 
-            webCrawlResult = await Task.Run(() => WebCrawlManager.DetailWebCrawlResult());
+            webCrawlResult = await Task.Run(() => WebCrawlManager.GetWebCrawlPayLoad());
 
             PopulateLoanCollection(loanManager.ListCredits);
             DisplayWebCrawlResult();
@@ -91,13 +91,13 @@ namespace UI
             irccTableListView.ItemsSource = webCrawlResult.QuarterlyIndices;
         }
 
-        private void PopulateLoanCollection(Loan[] loans, int selectIndex = 0)
+        private void PopulateLoanCollection(Loan[] loans, int selectLoanId = -1)
         {
             Loan[] loansList = loans.Prepend(new Loan { Id = -1, Name = "Credit nou..." }).ToArray();
 
-            loanCollection = new ObservableCollection<Loan>(loans);
+            loanCollection = new ObservableCollection<Loan>(loansList);
             loanSelectionComboBox.DataContext = loanCollection;
-            loanSelectionComboBox.SelectedIndex = selectIndex > loansList.Length - 1 ? loansList.Length - 1 : selectIndex;
+            loanSelectionComboBox.SelectedIndex = Array.IndexOf(loansList, loansList.First(l => l.Id == selectLoanId));
         }
 
         private void PopulateInstalmentCollection(Instalment[] instalmentEntries)
@@ -105,10 +105,10 @@ namespace UI
             instalmentCollection = new ObservableCollection<Instalment>(instalmentEntries);
             instalmentTableDataGrid.DataContext = instalmentCollection;
 
-            int currentDateItemIndex = instalmentEntries.Select((entry, index) => (entry.Date, index)).FirstOrDefault(tuple => tuple.Date.AddMonths(-1) < DateTime.Today && DateTime.Today <= tuple.Date).index;
+            int currentYearStartDateItemIndex = instalmentEntries.Select((entry, index) => (entry.Date, index)).FirstOrDefault(tuple => tuple.Date.Year == DateTime.Now.Date.Year).index;
 
             ScrollViewer scrollViewer = GetScrollViewer(instalmentTableDataGrid) as ScrollViewer;
-            scrollViewer.ScrollToVerticalOffset(currentDateItemIndex);
+            scrollViewer.ScrollToVerticalOffset(currentYearStartDateItemIndex);
         }
 
         private static DependencyObject GetScrollViewer(DependencyObject dependencyObject)
@@ -177,7 +177,7 @@ namespace UI
         {
             List<string> errors = new List<string>();
 
-            Loan creditDetails = new Loan
+            Loan loan = new Loan
             {
                 Id = GetLoanId(),
                 Name = ValidateLoanName(loanNameTextBox.Text, errors),
@@ -197,9 +197,9 @@ namespace UI
                 return;
             }
 
-            loanManager.SaveLoan(creditDetails);
+            loanManager.SaveLoan(loan);
 
-            PopulateLoanCollection(loanManager.ListCredits, loanCollection.Count - 1);
+            PopulateLoanCollection(loanManager.ListCredits, loan.Id);
         }
 
         private int GetLoanId()
@@ -225,13 +225,14 @@ namespace UI
             SetAdditionalLoanRepaymentControlsEnabled(true);
 
             Instalment selectedInstalment = instalmentTableDataGrid.SelectedItem as Instalment;
-            AdditionalRepayment[] selectedInstalmentAdditionalRepayments = selectedInstalment.AdditionalLoanRepayments;
 
             additionalLoanRepaymentDateDatePicker.DisplayDateStart = selectedInstalment.Date.AddMonths(-1).AddDays(1);
             additionalLoanRepaymentDateDatePicker.DisplayDateEnd = selectedInstalment.Date;
             additionalLoanRepaymentDateDatePicker.DisplayDate = selectedInstalment.Date;
 
-            PopulateAdditionalLoanRepaymentsCollection(selectedInstalmentAdditionalRepayments);
+            additionalRepaymentCollection = new ObservableCollection<AdditionalRepayment>(selectedInstalment.AdditionalLoanRepayments.Prepend(new AdditionalRepayment { Id = 0 }));
+            additionalLoanRepaymentSelectionComboBox.DataContext = additionalRepaymentCollection;
+            additionalLoanRepaymentSelectionComboBox.SelectedIndex = selectedInstalment.AdditionalLoanRepayments.Length;
         }
 
         private void SetAdditionalLoanRepaymentControlsEnabled(bool enabled)
@@ -242,21 +243,6 @@ namespace UI
             saveAdditionalLoanRepaymentButton.IsEnabled = enabled;
             additionalLoanRepaymentPeriodReductionTypeRadioButton.IsEnabled = enabled;
             additionalLoanRepaymentPaymentReductionTypeRadioButton.IsEnabled = enabled;
-        }
-
-        private void PopulateAdditionalLoanRepaymentsCollection(AdditionalRepayment[] additionalRepayments, int selectIndex = 0)
-        {
-            AdditionalRepayment[] repayments = additionalRepayments.Select(repayment => new AdditionalRepayment
-            {
-                Name = FormatDate(repayment.Date),
-                Date = repayment.Date,
-                Sum = repayment.Sum,
-                Type = repayment.Type
-            }).Prepend(new AdditionalRepayment { Name = "Plată nouă..." }).ToArray();
-
-            this.additionalRepaymentCollection = new ObservableCollection<AdditionalRepayment>(repayments);
-            additionalLoanRepaymentSelectionComboBox.DataContext = this.additionalRepaymentCollection;
-            additionalLoanRepaymentSelectionComboBox.SelectedIndex = selectIndex > repayments.Length - 1 ? repayments.Length - 1 : selectIndex;
         }
 
         private void AdditionalLoanRepaymentSelectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -294,27 +280,29 @@ namespace UI
         {
             deleteAdditionalLoanRepaymentButton.Visibility = Visibility.Hidden;
 
-            DateTime additionalRepaymentDate = (additionalLoanRepaymentSelectionComboBox.SelectedItem as AdditionalRepayment).Date.Date;
+            int id = (additionalLoanRepaymentSelectionComboBox.SelectedItem as AdditionalRepayment).Id;
 
-            loanManager.DeleteAdditionalRepayment(loanSelectionComboBox.SelectedItem as Loan, additionalRepaymentDate);
+            loanManager.DeleteAdditionalRepayment(loanSelectionComboBox.SelectedItem as Loan, id);
 
+            additionalLoanRepaymentSelectionComboBox.SelectedIndex = 0;
             additionalLoanRepaymentDateDatePicker.SelectedDate = null;
             additionalLoanRepaymentPaymentReductionTypeRadioButton.IsChecked = false;
             additionalLoanRepaymentPeriodReductionTypeRadioButton.IsChecked = false;
             additionalLoanRepaymentSumTextBox.Clear();
 
-            PopulateLoanCollection(loanManager.ListCredits, loanSelectionComboBox.SelectedIndex);
+            PopulateLoanCollection(loanManager.ListCredits, ((Loan)loanSelectionComboBox.SelectedItem).Id);
         }
 
         private void SaveAdditionalLoanRepaymentButton_Click(object sender, RoutedEventArgs e)
         {
+            Loan parentLoan = loanSelectionComboBox.SelectedItem as Loan;
             List<string> errors = new List<string>();
 
             SetAdditionalLoanRepaymentControlsEnabled(false);
 
             AdditionalRepayment additionalRepayment = new AdditionalRepayment
             {
-                Name = FormatDate(ValidateDateIsSelected(additionalLoanRepaymentDateDatePicker.SelectedDate, "plății anticipate", errors)),
+                Id = additionalLoanRepaymentSelectionComboBox.SelectedIndex == 0 ? parentLoan.AdditionalRepayments.Count + 1 : (additionalLoanRepaymentSelectionComboBox.SelectedItem as AdditionalRepayment).Id,
                 Date = ValidateDateIsSelected(additionalLoanRepaymentDateDatePicker.SelectedDate, "plății anticipate", errors).Date,
                 Sum = ValidateDecimalValueInput("Suma", additionalLoanRepaymentSumTextBox.Text, errors),
                 Type = ValidateAdditionalLoanRepaymentTypeIsSelected(errors),
@@ -328,7 +316,7 @@ namespace UI
             }
             else
             {
-                loanManager.SaveAdditionalRepayment(loanSelectionComboBox.SelectedItem as Loan, additionalRepayment);
+                loanManager.SaveAdditionalRepayment(parentLoan, additionalRepayment);
 
                 additionalLoanRepaymentDateDatePicker.SelectedDate = null;
                 additionalLoanRepaymentPaymentReductionTypeRadioButton.IsChecked = false;

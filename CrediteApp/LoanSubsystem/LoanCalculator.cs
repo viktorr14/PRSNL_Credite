@@ -1,8 +1,8 @@
 ﻿using LoanSubsystem.Models;
-using WebCrawlSubsystem.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using WebCrawlSubsystem.Models;
 
 namespace LoanSubsystem
 {
@@ -24,26 +24,30 @@ namespace LoanSubsystem
         private static (List<Instalment>, decimal) Calculate(Loan loan, QuarterlyIndex[] quarterlyIndices, bool ignoreAdditionalRepayments = false)
         {
             DateTime currentInstalmentDate = new DateTime(loan.StartDate.Year, loan.StartDate.Month, loan.MonthlyDueDay);
-            bool oddFirstMonth = false;
-            int oddFirstMonthDays = 0;
+            bool partialFirstMonth = false;
+            int partialFirstMonthDays = 0;
+            if (loan.StartDate.Day == loan.MonthlyDueDay + 1)
+            {
+                currentInstalmentDate = currentInstalmentDate.AddMonths(1);
+            }
             if (loan.StartDate.Day <= loan.MonthlyDueDay)
             {
-                oddFirstMonth = true;
-                oddFirstMonthDays = (currentInstalmentDate - loan.StartDate).Days + 1;
+                partialFirstMonth = true;
+                partialFirstMonthDays = (currentInstalmentDate - loan.StartDate).Days + 1;
             }
-            if (loan.StartDate.Day > loan.MonthlyDueDay)
+            if (loan.StartDate.Day > loan.MonthlyDueDay + 1)
             {
-                oddFirstMonth = true;
+                partialFirstMonth = true;
                 currentInstalmentDate = currentInstalmentDate.AddMonths(1);
-                oddFirstMonthDays = (currentInstalmentDate - loan.StartDate).Days + 1;
+                partialFirstMonthDays = (currentInstalmentDate - loan.StartDate).Days + 1;
             }
 
             decimal remainingSum = loan.Sum;
             int remainingMonths = loan.Duration;
-            decimal totalCost = 0;
+            decimal totalCost = decimal.Zero;
 
             DateTime lastPaymentDate = loan.StartDate;
-            
+
             List<Instalment> instalments = new List<Instalment>(loan.Duration);
 
             while (remainingMonths > 0)
@@ -51,63 +55,79 @@ namespace LoanSubsystem
                 decimal irccPercentage = GetIrccPercentageInEffect(quarterlyIndices, currentInstalmentDate);
                 decimal interestPercentage = irccPercentage + loan.InterestRate;
                 decimal interestRate = interestPercentage / 100;
-                decimal interestSum = oddFirstMonth
-                    ? (interestRate / 12 * remainingSum * oddFirstMonthDays / (currentInstalmentDate - currentInstalmentDate.AddMonths(-1)).Days) 
+                decimal interestSum = partialFirstMonth
+                    ? (interestRate / 12 * remainingSum * partialFirstMonthDays / (currentInstalmentDate - currentInstalmentDate.AddMonths(-1)).Days)
                     : (interestRate / 12 * remainingSum);
-                decimal mainSum = interestSum / (decimal)(Math.Pow(1 + ((double)interestRate / 12), remainingMonths) - 1);
+                decimal principalSum = interestSum / (decimal)(Math.Pow(1 + ((double)interestRate / 12), remainingMonths) - 1);
 
-                if (oddFirstMonth)
+                if (partialFirstMonth)
                 {
-                    oddFirstMonth = false;
-                }    
+                    partialFirstMonth = false;
+                }
 
                 AdditionalRepayment[] additionalRepayments = loan.AdditionalRepayments.Where(ar => ar.Date > currentInstalmentDate.AddMonths(-1) && ar.Date <= currentInstalmentDate).ToArray();
 
-                decimal additionalRepaidTotal = 0;
-                decimal additionalRepaidComissionTotal = 0;
-                DateTime previousInstalmentDate = currentInstalmentDate.AddMonths(-1);
+                decimal additionalRepaidTotal = decimal.Zero;
+                decimal additionalRepaidComissionTotal = decimal.Zero;
                 if (!ignoreAdditionalRepayments && additionalRepayments.Length != 0)
                 {
-                    decimal remainingInterestSum = interestSum;
-                    interestSum = 0;
+                    DateTime previousInstalmentDate = currentInstalmentDate.AddMonths(-1);
+                    int daysInMonth = (currentInstalmentDate - previousInstalmentDate).Days;
 
+                    decimal intermediateInterestSum = decimal.Zero;
+                    decimal recalculatedInterestSum = decimal.Zero;
+                    decimal intermediatePrincipalSum = decimal.Zero;
                     foreach (AdditionalRepayment additionalRepayment in additionalRepayments)
                     {
-                        decimal additionalRepaymentSum = additionalRepayment.Sum;
-                        int oldInterestDays = (additionalRepayment.Date - previousInstalmentDate).Days;
-                        int newInterestDays = 30 - oldInterestDays;
-                        decimal oldInterestSum = decimal.Round(interestRate / 12 * remainingSum * oldInterestDays / 30, 2);
+                        int daysSinceLastPayment = (currentInstalmentDate - previousInstalmentDate).Days;
+                        int accumulatedInterestDays = (additionalRepayment.Date - previousInstalmentDate).Days;
+                        int leftoverInterestDays = daysSinceLastPayment - accumulatedInterestDays;
+                        intermediateInterestSum += interestRate / 12 * remainingSum * accumulatedInterestDays / daysInMonth;
 
-                        additionalRepaidComissionTotal += loan.AdditionalRepaymentCommission * additionalRepaymentSum / 100;
-                        additionalRepaymentSum = decimal.Round(additionalRepaymentSum, 2);
+                        decimal additionalRepaymentSum = additionalRepayment.Sum + principalSum >= remainingSum ? remainingSum : additionalRepayment.Sum;
+                        additionalRepaidComissionTotal += loan.AdditionalRepaymentCommission / 100 * additionalRepaymentSum;
                         additionalRepaidTotal += additionalRepaymentSum;
                         remainingSum -= additionalRepaymentSum;
 
-                        if (additionalRepayment.Type == AdditionalRepaymentType.PeriodReduction)
+                        if (remainingSum > decimal.Zero)
                         {
-                            int monthsToReduce = (int)(additionalRepaymentSum / mainSum);
+                            if (additionalRepayment.Type == AdditionalRepaymentType.PeriodReduction)
+                            {
+                                remainingMonths -= (int)(additionalRepaymentSum / principalSum);
+                                decimal projectedPrincipalSum = interestRate / 12 * remainingSum / (decimal)(Math.Pow(1 + ((double)interestRate / 12), remainingMonths) - 1);
+                                decimal nextMonthInterestSum = interestRate / 12 * (remainingSum - projectedPrincipalSum);
+                                decimal nextMonthPrincipalSum = nextMonthInterestSum / (decimal)(Math.Pow(1 + ((double)interestRate / 12), remainingMonths - 1) - 1);
+                                if (nextMonthInterestSum + nextMonthPrincipalSum > interestSum + principalSum)
+                                {
+                                    remainingMonths++;
+                                }
+                            }
 
-                            remainingMonths -= monthsToReduce == 0 ? 1 : monthsToReduce;
+                            recalculatedInterestSum = interestRate / 12 * remainingSum * leftoverInterestDays / daysInMonth;
+                            intermediatePrincipalSum = interestRate / 12 * remainingSum / (decimal)(Math.Pow(1 + ((double)interestRate / 12), remainingMonths) - 1);
+                            previousInstalmentDate = additionalRepayment.Date;
                         }
-
-                        mainSum = interestRate / 12 * remainingSum / (decimal)(Math.Pow(1 + ((double)interestRate / 12), remainingMonths) - 1);
-                        remainingInterestSum = decimal.Round(interestRate / 12 * remainingSum * newInterestDays / 30, 2);
-                        interestSum += oldInterestSum;
+                        else
+                        {
+                            remainingMonths = 0;
+                            principalSum = decimal.Zero;
+                            recalculatedInterestSum = decimal.Zero;
+                            break;
+                        }
                     }
-
-                    interestSum += remainingInterestSum;
+                    interestSum = intermediateInterestSum + recalculatedInterestSum;
+                    principalSum = intermediatePrincipalSum;
                 }
 
-                remainingSum -= decimal.Round(mainSum, 2);
-                remainingMonths--;
-                totalCost += decimal.Round(mainSum, 2) + decimal.Round(interestSum, 2) + decimal.Round(additionalRepaidTotal, 2);
+                remainingSum -= principalSum;
+                totalCost += principalSum + interestSum + additionalRepaidTotal + additionalRepaidComissionTotal;
 
                 instalments.Add(new Instalment
                 {
                     Date = currentInstalmentDate,
                     InterestPercentage = interestPercentage,
-                    RemainingSum = decimal.Round(remainingSum, 2),
-                    PrincipalSum = mainSum,
+                    RemainingSum = remainingSum,
+                    PrincipalSum = principalSum,
                     InterestSum = interestSum,
                     AdditionalSum = additionalRepaidTotal,
                     AdditionalComission = additionalRepaidComissionTotal,
@@ -115,6 +135,7 @@ namespace LoanSubsystem
                 });
 
                 currentInstalmentDate = currentInstalmentDate.AddMonths(1);
+                remainingMonths--;
             }
 
             return (instalments, totalCost);
@@ -122,7 +143,7 @@ namespace LoanSubsystem
 
         private static decimal GetIrccPercentageInEffect(QuarterlyIndex[] quarterlyIndices, DateTime currentEntryDate)
         {
-            return quarterlyIndices.FirstOrDefault(quarterlyIndex => IsQuarterlyIndexEffective(quarterlyIndex, currentEntryDate))?.IndexPercentage ?? quarterlyIndices.First().IndexPercentage;
+            return quarterlyIndices.FirstOrDefault(quarterlyIndex => IsQuarterlyIndexEffective(quarterlyIndex, currentEntryDate))?.IndexPercentage ?? decimal.Zero;
         }
 
         private static bool IsQuarterlyIndexEffective(QuarterlyIndex quarterlyIndex, DateTime currentEntryDate)

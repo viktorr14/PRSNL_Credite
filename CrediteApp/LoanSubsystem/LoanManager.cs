@@ -25,22 +25,22 @@ namespace LoanSubsystem
         {
             if (quarterlyIndices == null || loan.InterestType == InterestType.Fixed)
             {
-                quarterlyIndices = new QuarterlyIndex[] { new QuarterlyIndex() { Year = 2000, Quarter = 1 } };
+                quarterlyIndices = new QuarterlyIndex[0];
             }
 
             return LoanCalculator.CalculateRepaymentDetails(loan, quarterlyIndices);
         }
 
-        public void DeleteAdditionalRepayment(Loan loan, DateTime additionalRepaymentDate)
+        public void DeleteAdditionalRepayment(Loan loan, int id)
         {
-            _ = loan.AdditionalRepayments.RemoveAll(ar => ar.Date == additionalRepaymentDate);
+            loan.AdditionalRepayments.RemoveAll(ar => ar.Id == id);
 
             loanResource.WriteLoan(loan);
         }
 
         public void SaveAdditionalRepayment(Loan loan, AdditionalRepayment additionalRepayment)
         {
-            _ = loan.AdditionalRepayments.RemoveAll(ar => ar.Date == additionalRepayment.Date);
+            loan.AdditionalRepayments.RemoveAll(ar => ar.Id == additionalRepayment.Id);
 
             if (additionalRepayment.Sum > 0)
             {
